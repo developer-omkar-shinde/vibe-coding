@@ -1,19 +1,39 @@
 # Cursor PR Review Setup
 
-This document captures the full workflow for reviewing GitHub pull requests in Cursor using:
+This setup creates a complete automated PR review workflow using:
 
 - Cursor rules
-- Cursor command
+- Cursor commands
 - Git worktrees
 - GitHub CLI (`gh`)
-- A small shell script
-- A shell alias
+- Review automation scripts
+- Shell aliases
+
+The goal is:
+
+- isolated PR review environments
+- no branch switching
+- no git stash usage
+- reusable Cursor review prompts
+- automated PR review setup and cleanup
 
 ---
 
-## 1) Cursor rule file
+# 1) Cursor Rule File
 
-**File:** `.cursor/rules/pr-review.mdc`
+File:
+
+```txt
+.cursor/rules/pr-review.mdc
+```
+
+Purpose:
+
+- persistent PR review behavior
+- automatically applied in Cursor
+- reusable review standards
+
+Example:
 
 ```md
 ---
@@ -26,6 +46,7 @@ You are a senior software engineer reviewing pull requests.
 ## Review Goals
 
 Review for:
+
 - bugs
 - regressions
 - edge cases
@@ -70,6 +91,7 @@ Review for:
 ## PR Context Rules
 
 To get full context:
+
 1. Check the local repository
 2. Identify the feature branch from the PR
 3. Compare changes against the target branch
@@ -77,6 +99,7 @@ To get full context:
 5. Review affected shared components/utilities
 
 Local repositories:
+
 - trivelta-webapp: /Users/prometteur/Documents/rebet/trivelta-webapp
 - trivelta-mobile-frontend: /Users/prometteur/Documents/rebet/trivelta-mobile-frontend
 - trivelta-backend-services: /Users/prometteur/Documents/rebet/trivelta-backend-services
@@ -85,7 +108,9 @@ Local repositories:
 ## Output Format
 
 ### Critical Issues
+
 Only include:
+
 - bugs
 - regressions
 - broken behavior
@@ -93,7 +118,9 @@ Only include:
 - major performance risks
 
 ### Improvements
+
 Include:
+
 - readability
 - maintainability
 - consistency
@@ -101,10 +128,13 @@ Include:
 - architecture concerns
 
 ### Optional Suggestions
+
 Include only non-blocking suggestions.
 
 ### Final Summary
+
 Provide:
+
 - overall risk level
 - key concerns
 - whether the PR is safe to merge
@@ -112,14 +142,26 @@ Provide:
 
 ---
 
-## 2) Cursor command file
+# 2) Cursor Command File
 
-**File:** `.cursor/commands/review-pr.md`
+File:
+
+```txt
+.cursor/commands/review-pr.md
+```
+
+Purpose:
+
+- reusable Cursor review command
+- allows running `/review-pr`
+
+Example:
 
 ```md
 Review the current pull request thoroughly using repository context.
 
 Steps:
+
 1. Inspect all changed files
 2. Inspect nearby related files when necessary
 3. Compare against existing repository patterns
@@ -132,6 +174,7 @@ Steps:
 10. Check for unnecessary complexity
 
 Important rules:
+
 - Only provide actionable comments
 - Do not praise unnecessarily
 - Avoid nitpicks unless impactful
@@ -139,6 +182,7 @@ Important rules:
 - Match existing repository conventions
 
 Use:
+
 - current git branch
 - local repository context
 - repository rules from `.cursor/rules/pr-review.mdc`
@@ -146,12 +190,15 @@ Use:
 Return output in this format:
 
 ## Critical Issues
+
 ## Improvements
+
 ## Optional Suggestions
+
 ## Final Summary
 ```
 
-Inside Cursor chat, run:
+Inside Cursor chat:
 
 ```txt
 /review-pr
@@ -159,12 +206,42 @@ Inside Cursor chat, run:
 
 ---
 
-## 3) Review script
+# 3) Review Script
 
-**File:** `.cursor/scripts/review-pr.sh`
+File:
+
+```txt
+.cursor/scripts/review-pr.sh
+```
+
+Purpose:
+
+- automate worktree creation
+- checkout PR automatically
+- open Cursor automatically
+- cleanup worktrees automatically
+
+Example:
 
 ```bash
 #!/bin/bash
+
+if [ "$1" = "--clean" ]; then
+  PR_NUMBER=$2
+
+  if [ -z "$PR_NUMBER" ]; then
+    echo "Usage: review-pr --clean <pr-number>"
+    exit 1
+  fi
+
+  WORKTREE_PATH="$HOME/Documents/review-$PR_NUMBER"
+
+  git worktree remove "$WORKTREE_PATH" --force
+
+  echo "Removed worktree: $WORKTREE_PATH"
+
+  exit 0
+fi
 
 PR_NUMBER=$1
 
@@ -188,7 +265,7 @@ gh pr checkout "$PR_NUMBER"
 cursor .
 ```
 
-Make it executable:
+Make executable:
 
 ```bash
 chmod +x .cursor/scripts/review-pr.sh
@@ -196,41 +273,39 @@ chmod +x .cursor/scripts/review-pr.sh
 
 ---
 
-## 4) Shell alias
+# 4) Create Shell Alias
 
-Add this to `~/.zshrc`:
+Add this to:
 
-```bash
-alias review-pr='.cursor/scripts/review-pr.sh'
+```txt
+~/.zshrc
 ```
 
-Reload your shell:
+```bash
+alias review-pr='/Users/prometteur/Documents/rebet/trivelta-webapp/.cursor/scripts/review-pr.sh'
+```
+
+Reload zsh:
 
 ```bash
 source ~/.zshrc
 ```
 
-Now you can run:
-
-```bash
-review-pr 2526
-```
-
 ---
 
-## 5) Full workflow
+# 5) Start PR Review
 
-Run this command from inside the repo:
+Run:
 
 ```bash
 review-pr 2526
 ```
 
-It will:
+This automatically:
 
-1. Create a separate git worktree
-2. Checkout the PR branch with `gh pr checkout`
-3. Open Cursor in that worktree
+1. Creates isolated git worktree
+2. Checks out PR branch
+3. Opens Cursor in review workspace
 
 Then inside Cursor chat:
 
@@ -240,27 +315,53 @@ Then inside Cursor chat:
 
 ---
 
-## 6) Cleanup after review
+# 6) Cleanup PR Review Workspace
 
-Remove the worktree when done:
-
-```bash
-git worktree remove ~/Documents/review-2526
-```
-
-Force remove if needed:
+After finishing review:
 
 ```bash
-git worktree remove ~/Documents/review-2526 --force
+review-pr --clean 2526
 ```
+
+This automatically:
+
+- removes the review worktree
+- cleans isolated review workspace
+
+No manual git worktree commands needed.
 
 ---
 
-## 7) Why this setup is useful
+# 7) Benefits of This Setup
 
-- No branch switching in your main worktree
-- No stash required
-- Your current work stays untouched
-- Cursor gets full local repository context
-- Reviews become repeatable and consistent
-- The same workflow works for every PR
+- No branch switching
+- No git stash required
+- Current work remains untouched
+- Full repository context for Cursor
+- Reusable PR review workflow
+- Consistent review quality
+- Isolated review environments
+- Faster PR reviews
+- Cleaner git workflow
+
+---
+
+# 8) Final Workflow
+
+Start review:
+
+```bash
+review-pr 2526
+```
+
+Inside Cursor:
+
+```txt
+/review-pr
+```
+
+Cleanup:
+
+```bash
+review-pr --clean 2526
+```
